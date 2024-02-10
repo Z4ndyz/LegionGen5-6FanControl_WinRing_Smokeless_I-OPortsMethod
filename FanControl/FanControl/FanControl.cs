@@ -333,12 +333,17 @@ namespace FanControl.Utils
 
     internal static class FanControl
     {
+
+
+
+
         private static void Main()
         {
 
             byte ecAddrPort = (byte)EC.ITE_PORT.EC_ADDR_PORT;
             byte ecDataPort = (byte)EC.ITE_PORT.EC_DATA_PORT;
             int powerModeWMI = 0;
+            string filePath;
 
             // Initialize WinRing
             WinRing.WinRingInitOk = WinRing.InitializeOls();
@@ -346,69 +351,53 @@ namespace FanControl.Utils
             if (WinRing.WinRingInitOk)
             {
 
+                powerModeWMI = ExtractPowerModeWMI(); // Get WMI Power Mode
+                filePath = GetFilePathBasedOnPowerMode(powerModeWMI); // Select the Right Fan Config based on WMI Power Mode
 
-                try // Get Power Mode from WMI
-                {
-                    // Set up the WMI query
-#pragma warning disable CA1416 // Validate platform compatibility
-                    ManagementScope scope = new ManagementScope("\\\\.\\ROOT\\WMI");
-#pragma warning restore CA1416 // Validate platform compatibility
-#pragma warning disable CA1416 // Validate platform compatibility
-                    ObjectQuery query = new ObjectQuery("SELECT * FROM LENOVO_GAMEZONE_DATA");
-#pragma warning restore CA1416 // Validate platform compatibility
-#pragma warning disable CA1416 // Validate platform compatibility
-                    ManagementObjectSearcher searcher = new ManagementObjectSearcher(scope, query);
-#pragma warning restore CA1416 // Validate platform compatibility
+                // Debug Section
 
-                    // Execute the query and retrieve the first result
-#pragma warning disable CA1416 // Validate platform compatibility
-#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
-                    ManagementObject gameZoneData = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
-#pragma warning restore CA1416 // Validate platform compatibility
+                // Print EC_ADDR_PORT and EC_DATA_PORT values
+                Console.WriteLine($"EC_ADDR_PORT: 0x{ecAddrPort:X}");
+                Console.WriteLine($"EC_DATA_PORT: 0x{ecDataPort:X}");
 
-                    // Check if the result is not null
-                    if (gameZoneData != null)
-                    {
-                        // Call the GetSmartFanMode method
-#pragma warning disable CA1416 // Validate platform compatibility
-                        ManagementBaseObject outParams = gameZoneData.InvokeMethod("GetSmartFanMode", null, null);
-#pragma warning restore CA1416 // Validate platform compatibility
+                Console.WriteLine($"Power mode: {powerModeWMI}"); // Print Power Mode
+                Console.WriteLine($"File to extract fan curves from: {filePath}"); // Print File Path
 
-                        // Check if the outParams object is not null
-                        if (outParams != null)
-                        {
-                            // Retrieve the 'Data' property from outParams
-#pragma warning disable CA1416 // Validate platform compatibility
-                            object dataProperty = outParams["Data"];
-#pragma warning restore CA1416 // Validate platform compatibility
+                // Extract values from the file
+                var extractedValues = ExtractValuesFromFile(filePath); // Get the Necesarry values from the file
 
-                            // Check if the 'Data' property is not null
-                            if (dataProperty != null)
-                            {
-                                // Convert 'Data' property to the appropriate type (e.g., int) and display
-                                powerModeWMI = Convert.ToInt32(dataProperty);
-                                // Console.WriteLine($"Data Value: {powerModeWMI}"); // Debug purposes
-                            }
-                            else
-                            {
-                                Console.WriteLine("'Data' property is null.");
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("outParams is null.");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("gameZoneData is null.");
-                    }
-                }
-                catch (ManagementException ex)
-                {
-                    Console.WriteLine($"WMI Error: {ex.Message}");
-                }
+                // Access the extracted values and perform type casting
+                int legionGen = (int)extractedValues["legion_gen"];
+                int fanCurvePoints = (int)extractedValues["fan_curve_points"];
+                int fanAcclValue = (int)extractedValues["fan_accl_value"];
+                int fanDecclValue = (int)extractedValues["fan_deccl_value"];
+                int[] fanRpmPointsValue = (int[])extractedValues["fan_rpm_points"];
+                int[] cpuTempsRampUp = (int[])extractedValues["cpu_temps_ramp_up"];
+                int[] cpuTempsRampDown = (int[])extractedValues["cpu_temps_ramp_down"];
+                int[] gpuTempsRampUp = (int[])extractedValues["gpu_temps_ramp_up"];
+                int[] gpuTempsRampDown = (int[])extractedValues["gpu_temps_ramp_down"];
+                int[] hstTempsRampUp = (int[])extractedValues["hst_temps_ramp_up"];
+                int[] hstTempsRampDown = (int[])extractedValues["hst_temps_ramp_down"];
+
+
+                // Display the extracted values (optional)
+                Console.WriteLine($"Legion Gen: {legionGen}");
+                Console.WriteLine($"Fan Curve Points: {fanCurvePoints}");
+                Console.WriteLine($"Fan Accl Value: {fanAcclValue}");
+                Console.WriteLine($"Fan Decl Value: {fanDecclValue}");
+                Console.WriteLine($"Fan RPM Points: {string.Join(", ", fanRpmPointsValue)}");
+                Console.WriteLine($"CPU Temps Ramp Up: {string.Join(", ", cpuTempsRampUp)}");
+                Console.WriteLine($"CPU Temps Ramp Down: {string.Join(", ", cpuTempsRampDown)}");
+                Console.WriteLine($"GPU Temps Ramp Up: {string.Join(", ", gpuTempsRampUp)}");
+                Console.WriteLine($"GPU Temps Ramp Down: {string.Join(", ", gpuTempsRampDown)}");
+                Console.WriteLine($"HST Temps Ramp Up: {string.Join(", ", hstTempsRampUp)}");
+                Console.WriteLine($"HST Temps Ramp Down: {string.Join(", ", hstTempsRampDown)}"); // Debug Values
+
+
+                // Keep the console window open for user observation (Debug Reading)
+                Console.ReadLine();
+
+                //
 
             }
             else
@@ -417,26 +406,132 @@ namespace FanControl.Utils
                 Console.WriteLine("WinRing initialization failed. Check if the driver is loaded.");
             }
 
-
             // Deallocate info related to WinRing
             WinRing.DeinitializeOls();
-
-
-            // Debug Section
-
-            Console.WriteLine($"Power mode: {powerModeWMI}"); // Print Power Mode
-            // Print EC_ADDR_PORT and EC_DATA_PORT values
-            Console.WriteLine($"EC_ADDR_PORT: 0x{ecAddrPort:X}");
-            Console.WriteLine($"EC_DATA_PORT: 0x{ecDataPort:X}");
-
-            // Keep the console window open for user observation
-            Console.ReadLine();
-            //
-
         }
+
+        private static int ExtractPowerModeWMI()
+        {
+            int powerModeWMI = 0;
+#pragma warning disable CA1416 // Validate platform compatibility
+            ManagementScope scope = new ManagementScope("\\\\.\\ROOT\\WMI");
+#pragma warning restore CA1416 // Validate platform compatibility
+
+            try
+            {
+                // Set up the WMI query
+#pragma warning disable CA1416 // Validate platform compatibility
+                ObjectQuery query = new ObjectQuery("SELECT * FROM LENOVO_GAMEZONE_DATA");
+#pragma warning restore CA1416 // Validate platform compatibility
+#pragma warning disable CA1416 // Validate platform compatibility
+                ManagementObjectSearcher searcher = new ManagementObjectSearcher(scope, query);
+#pragma warning restore CA1416 // Validate platform compatibility
+
+                // Execute the query and retrieve the first result
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+#pragma warning disable CA1416 // Validate platform compatibility
+                ManagementObject gameZoneData = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+#pragma warning restore CA1416 // Validate platform compatibility
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
+
+                // Check if the result is not null
+                if (gameZoneData != null)
+                {
+                    // Call the GetSmartFanMode method
+#pragma warning disable CA1416 // Validate platform compatibility
+                    ManagementBaseObject outParams = gameZoneData.InvokeMethod("GetSmartFanMode", null, null);
+#pragma warning restore CA1416 // Validate platform compatibility
+
+                    // Check if the outParams object is not null
+                    if (outParams != null)
+                    {
+                        // Retrieve the 'Data' property from outParams
+#pragma warning disable CA1416 // Validate platform compatibility
+                        object dataProperty = outParams["Data"];
+#pragma warning restore CA1416 // Validate platform compatibility
+
+                        // Check if the 'Data' property is not null
+                        if (dataProperty != null)
+                        {
+                            // Convert 'Data' property to the appropriate type (e.g., int)
+                            powerModeWMI = Convert.ToInt32(dataProperty);
+                        }
+                        else
+                        {
+                            Console.WriteLine("'Data' property is null.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("outParams is null.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("gameZoneData is null.");
+                }
+            }
+            catch (ManagementException ex)
+            {
+                Console.WriteLine($"WMI Error: {ex.Message}");
+            }
+
+            return powerModeWMI;
+        }
+
+        static string GetFilePathBasedOnPowerMode(int powerModeWMI)
+        {
+            switch (powerModeWMI)
+            {
+                case 1:
+                    return "fan_config_quiet.txt";
+                case 2:
+                    return "fan_config_balanced.txt";
+                case 3:
+                case 255:
+                    return "fan_config_perfcust.txt";
+                default:
+                    // Invalid powerModeWMI value
+                    Console.WriteLine("Invalid powerModeWMI value. Please set it correctly.");
+                    Environment.Exit(1); // Exit the program with an error code
+                    return null; // This line won't be reached, but added to satisfy the compiler
+            }
+        }
+
+        static Dictionary<string, object> ExtractValuesFromFile(string filePath)
+        {
+            // Read all lines from the file
+            string[] lines = File.ReadAllLines(filePath);
+
+            // Create dictionaries to store the parsed values
+            Dictionary<string, object> values = new Dictionary<string, object>();
+
+            // Parse each line and store the values in the dictionary
+            foreach (var line in lines)
+            {
+                var split = line.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries);
+                if (split.Length == 2)
+                {
+                    var key = split[0].Trim();
+                    var valuesString = split[1].Trim().Split();
+                    if (valuesString.Length == 1)
+                    {
+                        // Single integer value
+                        values[key] = int.Parse(valuesString[0]);
+                    }
+                    else
+                    {
+                        // Array of integers
+                        values[key] = valuesString.Select(int.Parse).ToArray();
+                    }
+                }
+            }
+
+            return values;
+        }
+
     }
 }
-
 
 // Info from an older .ps1 script i was using instead
 // The previous script was using Smokeless PoC.exe paired with RwDrv.sys

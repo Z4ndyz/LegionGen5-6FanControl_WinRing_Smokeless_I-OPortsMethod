@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\AndyG\\Desktop\\Scripts\\Experiment\\FanControl\\FanControl\\FanControl\\FanControl.csproj": {}
+    "C:\\Users\\AndyG\\Desktop\\Scripts\\LegionFanControl_WinRing\\LegionFanControl_WinRing_IO_Ports\\LegionGen5-6FanControl_WinRing_Smokeless_I-OPortsMethod\\FanControl\\FanControl\\FanControl.csproj": {}
   },
   "projects": {
-    "C:\\Users\\AndyG\\Desktop\\Scripts\\Experiment\\FanControl\\FanControl\\FanControl\\FanControl.csproj": {
+    "C:\\Users\\AndyG\\Desktop\\Scripts\\LegionFanControl_WinRing\\LegionFanControl_WinRing_IO_Ports\\LegionGen5-6FanControl_WinRing_Smokeless_I-OPortsMethod\\FanControl\\FanControl\\FanControl.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\AndyG\\Desktop\\Scripts\\Experiment\\FanControl\\FanControl\\FanControl\\FanControl.csproj",
+        "projectUniqueName": "C:\\Users\\AndyG\\Desktop\\Scripts\\LegionFanControl_WinRing\\LegionFanControl_WinRing_IO_Ports\\LegionGen5-6FanControl_WinRing_Smokeless_I-OPortsMethod\\FanControl\\FanControl\\FanControl.csproj",
         "projectName": "FanControl",
-        "projectPath": "C:\\Users\\AndyG\\Desktop\\Scripts\\Experiment\\FanControl\\FanControl\\FanControl\\FanControl.csproj",
+        "projectPath": "C:\\Users\\AndyG\\Desktop\\Scripts\\LegionFanControl_WinRing\\LegionFanControl_WinRing_IO_Ports\\LegionGen5-6FanControl_WinRing_Smokeless_I-OPortsMethod\\FanControl\\FanControl\\FanControl.csproj",
         "packagesPath": "C:\\Users\\AndyG\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\AndyG\\Desktop\\Scripts\\Experiment\\FanControl\\FanControl\\FanControl\\obj\\",
+        "outputPath": "C:\\Users\\AndyG\\Desktop\\Scripts\\LegionFanControl_WinRing\\LegionFanControl_WinRing_IO_Ports\\LegionGen5-6FanControl_WinRing_Smokeless_I-OPortsMethod\\FanControl\\FanControl\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
