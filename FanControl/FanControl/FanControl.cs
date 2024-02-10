@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using FanControl.Utils;
 using static FanControl.Utils.EC;
 
+// Continued and Finished by Zandyz(Discord) https://github.com/Z4ndyz
 // Modified version of https://github.com/SmokelessCPUv2/Lagon-Fan-EC-Control/blob/main/FanControl/Utils/Utils.cs
 // Credits to SmokelessCpu for providing us with this file as open source. This is a better alternative to LFC as it uses
 // WinRing in a more secure way and writting to the EC through the use of I/O ports. RwDrv.sys won't be used anymore compared to LFC
@@ -336,102 +337,105 @@ namespace FanControl.Utils
     internal static class FanControl
     {
 
-
-
-
-        private static void Main()
+        private static async Task Main()
         {
+            while (true)
+            {
+                // Initialize WinRing
+                WinRing.WinRingInitOk = WinRing.InitializeOls();
+                // Check if WinRing initialized properly, if it did then Write & Read from the EC
+                if (WinRing.WinRingInitOk)
+                {
+                    ApplyFanCurve();
+                }
+                else
+                {
+                    // Print a message indicating initialization failure
+                    Console.WriteLine("WinRing initialization failed. Check if the driver is loaded.");
+                }
 
+                // Deallocate info related to WinRing
+                WinRing.DeinitializeOls();
+
+                // Wait for 10 seconds before looping back
+                await Task.Delay(15000); // 15000 milliseconds = 15 seconds
+            }
+        }
+        public static void ApplyFanCurve()
+        {
             byte ecAddrPort = (byte)EC.ITE_PORT.EC_ADDR_PORT;
             byte ecDataPort = (byte)EC.ITE_PORT.EC_DATA_PORT;
             int powerModeWMI = 0;
             string filePath;
+            powerModeWMI = ExtractPowerModeWMI(); // Get WMI Power Mode
+            filePath = GetFilePathBasedOnPowerMode(powerModeWMI); // Select the Right Fan Config based on WMI Power Mode
+            var extractedValues = ExtractValuesFromFile(filePath); // Get the Necesarry values from the file
+                                                                   // Access the extracted values and perform type casting
+            int legionGen = (int)extractedValues["legion_gen"];
+            int fanCurvePoints = (int)extractedValues["fan_curve_points"];
+            int fanAcclValue = (int)extractedValues["fan_accl_value"];
+            int fanDecclValue = (int)extractedValues["fan_deccl_value"];
+            int[] fanRpmPointsValue = (int[])extractedValues["fan_rpm_points"];
+            int[] cpuTempsRampUp = (int[])extractedValues["cpu_temps_ramp_up"];
+            int[] cpuTempsRampDown = (int[])extractedValues["cpu_temps_ramp_down"];
+            int[] gpuTempsRampUp = (int[])extractedValues["gpu_temps_ramp_up"];
+            int[] gpuTempsRampDown = (int[])extractedValues["gpu_temps_ramp_down"];
+            int[] hstTempsRampUp = (int[])extractedValues["hst_temps_ramp_up"];
+            int[] hstTempsRampDown = (int[])extractedValues["hst_temps_ramp_down"];
+            // Assuming fanCurvePoints, fanAcclValue, fanDecclValue are single integers
+            byte fanCurvePointsByte = (byte)fanCurvePoints;
+            byte fanAcclValueByte = (byte)fanAcclValue;
+            byte fanDecclValueByte = (byte)fanDecclValue;
+            // Convert and divide fanRpmPointsValue by 100
+            byte[] fanRpmPointsBytes = fanRpmPointsValue.Select(value => (byte)(value / 100)).ToArray();
+            // Convert other arrays to bytes
+            byte[] cpuTempsRampUpBytes = cpuTempsRampUp.Select(value => (byte)value).ToArray();
+            byte[] cpuTempsRampDownBytes = cpuTempsRampDown.Select(value => (byte)value).ToArray();
+            byte[] gpuTempsRampUpBytes = gpuTempsRampUp.Select(value => (byte)value).ToArray();
+            byte[] gpuTempsRampDownBytes = gpuTempsRampDown.Select(value => (byte)value).ToArray();
+            byte[] hstTempsRampUpBytes = hstTempsRampUp.Select(value => (byte)value).ToArray();
+            byte[] hstTempsRampDownBytes = hstTempsRampDown.Select(value => (byte)value).ToArray();
+            byte fanPointCounterMaxSize = 0xA; // Max Hard Limit of the Fan Points Counter
+            UInt16[] startingAddresses = { (UInt16)EC.ITE_REGISTER_MAP.FAN1_RPM_ST_ADDR, (UInt16)EC.ITE_REGISTER_MAP.FAN2_RPM_ST_ADDR };
+            byte fillValueRampUp = 0x7F; // The fill value for Temperature Ramp Up (This is the Lenovo Ignore value)
+            byte stopRGBFanWakeValue = 0x25; // Value to disable fans when RGB keyboard is turned on
+            byte fanTableChangeCounterValue = 0x64;
 
-            // Initialize WinRing
-            WinRing.WinRingInitOk = WinRing.InitializeOls();
-            // Check if WinRing initialized properly, if it did then Write & Read from the EC
-            if (WinRing.WinRingInitOk)
-            {
+            WriteFanAcclDecclToEC(ecAddrPort, ecDataPort, legionGen, fanAcclValueByte, fanDecclValueByte);
+            WriteFanPointCounterMaxSizeToEC(ecAddrPort, ecDataPort, fanPointCounterMaxSize);
+            WriteFanRpmPointsToEC(ecAddrPort, ecDataPort, fanRpmPointsBytes, fanCurvePoints, startingAddresses);
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_UP_THRS, 10, fillValueRampUp); // CPU Ramp Up
+            byte fillValueRampDown = cpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // CPU Ramp Down
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_UP_THRS, 10, fillValueRampUp); // GPU Ramp Up
+            fillValueRampDown = gpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // GPU Ramp Down
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_UP_THRS, 10, fillValueRampUp); // HST Ramp Up
+            fillValueRampDown = hstTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+            WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_DOWN_THRS, 10, fillValueRampDown); // HST Ramp Down  
+            WriteStopRGBFanWakeToEC(ecAddrPort, ecDataPort, stopRGBFanWakeValue);
+            WriteFanTableChangeCounterToEC(ecAddrPort, ecDataPort, fanTableChangeCounterValue);
 
-                powerModeWMI = ExtractPowerModeWMI(); // Get WMI Power Mode
-                filePath = GetFilePathBasedOnPowerMode(powerModeWMI); // Select the Right Fan Config based on WMI Power Mode
-                var extractedValues = ExtractValuesFromFile(filePath); // Get the Necesarry values from the file
-                // Access the extracted values and perform type casting
-                int legionGen = (int)extractedValues["legion_gen"];
-                int fanCurvePoints = (int)extractedValues["fan_curve_points"];
-                int fanAcclValue = (int)extractedValues["fan_accl_value"];
-                int fanDecclValue = (int)extractedValues["fan_deccl_value"];
-                int[] fanRpmPointsValue = (int[])extractedValues["fan_rpm_points"];
-                int[] cpuTempsRampUp = (int[])extractedValues["cpu_temps_ramp_up"];
-                int[] cpuTempsRampDown = (int[])extractedValues["cpu_temps_ramp_down"];
-                int[] gpuTempsRampUp = (int[])extractedValues["gpu_temps_ramp_up"];
-                int[] gpuTempsRampDown = (int[])extractedValues["gpu_temps_ramp_down"];
-                int[] hstTempsRampUp = (int[])extractedValues["hst_temps_ramp_up"];
-                int[] hstTempsRampDown = (int[])extractedValues["hst_temps_ramp_down"];
-                // Assuming fanCurvePoints, fanAcclValue, fanDecclValue are single integers
-                byte fanCurvePointsByte = (byte)fanCurvePoints;
-                byte fanAcclValueByte = (byte)fanAcclValue;
-                byte fanDecclValueByte = (byte)fanDecclValue;
-                // Convert and divide fanRpmPointsValue by 100
-                byte[] fanRpmPointsBytes = fanRpmPointsValue.Select(value => (byte)(value / 100)).ToArray();
-                // Convert other arrays to bytes
-                byte[] cpuTempsRampUpBytes = cpuTempsRampUp.Select(value => (byte)value).ToArray();
-                byte[] cpuTempsRampDownBytes = cpuTempsRampDown.Select(value => (byte)value).ToArray();
-                byte[] gpuTempsRampUpBytes = gpuTempsRampUp.Select(value => (byte)value).ToArray();
-                byte[] gpuTempsRampDownBytes = gpuTempsRampDown.Select(value => (byte)value).ToArray();
-                byte[] hstTempsRampUpBytes = hstTempsRampUp.Select(value => (byte)value).ToArray();
-                byte[] hstTempsRampDownBytes = hstTempsRampDown.Select(value => (byte)value).ToArray();
-                byte fanPointCounterMaxSize = 0xA; // Max Hard Limit of the Fan Points Counter
-                UInt16[] startingAddresses = { (UInt16)EC.ITE_REGISTER_MAP.FAN1_RPM_ST_ADDR, (UInt16)EC.ITE_REGISTER_MAP.FAN2_RPM_ST_ADDR };
-                byte fillValueRampUp = 0x7F; // The fill value for Temperature Ramp Up (This is the Lenovo Ignore value)
-                byte stopRGBFanWakeValue = 0x25; // Value to disable fans when RGB keyboard is turned on
-                byte fanTableChangeCounterValue = 0x64;
+/*            DebugReadECAddresses( // Decomment this if you don't need to double check the data and the program works correctly
+                legionGen,
+                fanCurvePoints,
+                fanAcclValue,
+                fanDecclValue,
+                fanRpmPointsValue,
+                cpuTempsRampUp,
+                cpuTempsRampDown,
+                gpuTempsRampUp,
+                gpuTempsRampDown,
+                hstTempsRampUp,
+                hstTempsRampDown,
+                ecAddrPort,
+                ecDataPort,
+                powerModeWMI,
+                filePath
+           );
 
-                WriteFanAcclDecclToEC(ecAddrPort, ecDataPort, legionGen, fanAcclValueByte, fanDecclValueByte);
-                WriteFanPointCounterMaxSizeToEC(ecAddrPort, ecDataPort, fanPointCounterMaxSize);
-                WriteFanRpmPointsToEC(ecAddrPort, ecDataPort, fanRpmPointsBytes, fanCurvePoints, startingAddresses);
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_UP_THRS, 10, fillValueRampUp); // CPU Ramp Up
-                byte fillValueRampDown = cpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // CPU Ramp Down
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_UP_THRS, 10, fillValueRampUp); // GPU Ramp Up
-                fillValueRampDown = gpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // GPU Ramp Down
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_UP_THRS, 10, fillValueRampUp); // HST Ramp Up
-                fillValueRampDown = hstTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
-                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_DOWN_THRS, 10, fillValueRampDown); // HST Ramp Down  
-                WriteStopRGBFanWakeToEC(ecAddrPort, ecDataPort, stopRGBFanWakeValue);
-                WriteFanTableChangeCounterToEC(ecAddrPort, ecDataPort, fanTableChangeCounterValue);
-
-                DebugReadECAddresses( // Decomment this if you don't need to double check the data and the program works correctly
-                    legionGen,
-                    fanCurvePoints,
-                    fanAcclValue,
-                    fanDecclValue,
-                    fanRpmPointsValue,
-                    cpuTempsRampUp,
-                    cpuTempsRampDown,
-                    gpuTempsRampUp,
-                    gpuTempsRampDown,
-                    hstTempsRampUp,
-                    hstTempsRampDown,
-                    ecAddrPort,
-                    ecDataPort,
-                    powerModeWMI,
-                    filePath
-               );
-
-                // Keep the console window open for user observation (Debug Reading)
-                Console.ReadLine();
-
-            }
-            else
-            {
-                // Print a message indicating initialization failure
-                Console.WriteLine("WinRing initialization failed. Check if the driver is loaded.");
-            }
-
-            // Deallocate info related to WinRing
-            WinRing.DeinitializeOls();
+            // Keep the console window open for user observation (Debug Reading)
+            Console.ReadLine();*/
         }
 
         private static void WriteFanTableChangeCounterToEC(byte ecAddrPort, byte ecDataPort, byte fanTableChangeCounterValue)
@@ -917,15 +921,17 @@ namespace FanControl.Utils
 
         static string GetFilePathBasedOnPowerMode(int powerModeWMI)
         {
+            string executableDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
             switch (powerModeWMI)
             {
                 case 1:
-                    return "fan_config_quiet.txt";
+                    return Path.Combine(executableDirectory, "fan_config_quiet.txt");
                 case 2:
-                    return "fan_config_balanced.txt";
+                    return Path.Combine(executableDirectory, "fan_config_balanced.txt");
                 case 3:
                 case 255:
-                    return "fan_config_perfcust.txt";
+                    return Path.Combine(executableDirectory, "fan_config_perfcust.txt");
                 default:
                     // Invalid powerModeWMI value
                     Console.WriteLine("Invalid powerModeWMI value. Please set it correctly.");
