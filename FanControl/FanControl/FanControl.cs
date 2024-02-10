@@ -242,7 +242,7 @@ namespace FanControl.Utils
             FAN2_ACC_GEN5 = 0xC3DE,
             FAN2_DEC_GEN5 = 0xC3DF, // GEN 5 ACC/DEC VALUES
 
-            FAN_ACC_GEN6 = 0xC560, // GEN 6 ACC/DEC VALUES FROM 0 TO A (9 usable points, 10th hard stop point marker)
+            FAN_ACC_GEN6 = 0xC560, // GEN 6 ACC/DEC VALUES FROM 0 TO 9 (10 usable points, 11th hard stop point marker bsods cant touch it)
             FAN_DEC_GEN6 = 0xC570,
 
             //---------------------------------------------------------------------------------------------------------------------------------------
@@ -250,7 +250,7 @@ namespace FanControl.Utils
             // Step 2
             // FAN Points used for the curve
 
-            FAN_POINTS_NO = 0xC535, // 9 POINTS (a value of 0A) is the maximum, 10th point will be used by the EC, more points result in BSOD
+            FAN_POINTS_NO = 0xC535, // 9 usable POINTS (a value of 0A) is the maximum, 10th point will be used by the EC, more points result in BSOD
 
             //---------------------------------------------------------------------------------------------------------------------------------------
 
@@ -295,7 +295,7 @@ namespace FanControl.Utils
             // Step 5
             // Disable Fans from turning On when RGB keyboard is turned on
 
-            STOP_RGB_FAN_WAKE = 0xC64D, // If this value is written to 25 it'll disable fans from turning on when RGB keyboard is turned on
+            STOP_RGB_FAN_WAKE = 0xC64D, // If this value is written to hex 25 it'll disable fans from turning on when RGB keyboard is turned on
             // at low temps/idling
 
             //---------------------------------------------------------------------------------------------------------------------------------------
@@ -355,10 +355,7 @@ namespace FanControl.Utils
 
                 powerModeWMI = ExtractPowerModeWMI(); // Get WMI Power Mode
                 filePath = GetFilePathBasedOnPowerMode(powerModeWMI); // Select the Right Fan Config based on WMI Power Mode
-
-                // Extract values from the file
                 var extractedValues = ExtractValuesFromFile(filePath); // Get the Necesarry values from the file
-
                 // Access the extracted values and perform type casting
                 int legionGen = (int)extractedValues["legion_gen"];
                 int fanCurvePoints = (int)extractedValues["fan_curve_points"];
@@ -371,6 +368,39 @@ namespace FanControl.Utils
                 int[] gpuTempsRampDown = (int[])extractedValues["gpu_temps_ramp_down"];
                 int[] hstTempsRampUp = (int[])extractedValues["hst_temps_ramp_up"];
                 int[] hstTempsRampDown = (int[])extractedValues["hst_temps_ramp_down"];
+                // Assuming fanCurvePoints, fanAcclValue, fanDecclValue are single integers
+                byte fanCurvePointsByte = (byte)fanCurvePoints;
+                byte fanAcclValueByte = (byte)fanAcclValue;
+                byte fanDecclValueByte = (byte)fanDecclValue;
+                // Convert and divide fanRpmPointsValue by 100
+                byte[] fanRpmPointsBytes = fanRpmPointsValue.Select(value => (byte)(value / 100)).ToArray();
+                // Convert other arrays to bytes
+                byte[] cpuTempsRampUpBytes = cpuTempsRampUp.Select(value => (byte)value).ToArray();
+                byte[] cpuTempsRampDownBytes = cpuTempsRampDown.Select(value => (byte)value).ToArray();
+                byte[] gpuTempsRampUpBytes = gpuTempsRampUp.Select(value => (byte)value).ToArray();
+                byte[] gpuTempsRampDownBytes = gpuTempsRampDown.Select(value => (byte)value).ToArray();
+                byte[] hstTempsRampUpBytes = hstTempsRampUp.Select(value => (byte)value).ToArray();
+                byte[] hstTempsRampDownBytes = hstTempsRampDown.Select(value => (byte)value).ToArray();
+                byte fanPointCounterMaxSize = 0xA; // Max Hard Limit of the Fan Points Counter
+                UInt16[] startingAddresses = { (UInt16)EC.ITE_REGISTER_MAP.FAN1_RPM_ST_ADDR, (UInt16)EC.ITE_REGISTER_MAP.FAN2_RPM_ST_ADDR };
+                byte fillValueRampUp = 0x7F; // The fill value for Temperature Ramp Up (This is the Lenovo Ignore value)
+                byte stopRGBFanWakeValue = 0x25; // Value to disable fans when RGB keyboard is turned on
+                byte fanTableChangeCounterValue = 0x64;
+
+                WriteFanAcclDecclToEC(ecAddrPort, ecDataPort, legionGen, fanAcclValueByte, fanDecclValueByte);
+                WriteFanPointCounterMaxSizeToEC(ecAddrPort, ecDataPort, fanPointCounterMaxSize);
+                WriteFanRpmPointsToEC(ecAddrPort, ecDataPort, fanRpmPointsBytes, fanCurvePoints, startingAddresses);
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_UP_THRS, 10, fillValueRampUp); // CPU Ramp Up
+                byte fillValueRampDown = cpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, cpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.CPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // CPU Ramp Down
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_UP_THRS, 10, fillValueRampUp); // GPU Ramp Up
+                fillValueRampDown = gpuTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, gpuTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.GPU_RAMP_DOWN_THRS, 10, fillValueRampDown); // GPU Ramp Down
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampUpBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_UP_THRS, 10, fillValueRampUp); // HST Ramp Up
+                fillValueRampDown = hstTempsRampDownBytes.LastOrDefault(); // The fill value for CPU Ramp Down
+                WriteTemperatureRampToEC(ecAddrPort, ecDataPort, hstTempsRampDownBytes, (UInt16)ITE_REGISTER_MAP.HST_RAMP_DOWN_THRS, 10, fillValueRampDown); // HST Ramp Down  
+                WriteStopRGBFanWakeToEC(ecAddrPort, ecDataPort, stopRGBFanWakeValue);
+                WriteFanTableChangeCounterToEC(ecAddrPort, ecDataPort, fanTableChangeCounterValue);
 
                 DebugReadECAddresses( // Decomment this if you don't need to double check the data and the program works correctly
                     legionGen,
@@ -390,6 +420,9 @@ namespace FanControl.Utils
                     filePath
                );
 
+                // Keep the console window open for user observation (Debug Reading)
+                Console.ReadLine();
+
             }
             else
             {
@@ -401,8 +434,134 @@ namespace FanControl.Utils
             WinRing.DeinitializeOls();
         }
 
+        private static void WriteFanTableChangeCounterToEC(byte ecAddrPort, byte ecDataPort, byte fanTableChangeCounterValue)
+        {
+            UInt16 fanTableChangeCounterAddress = (UInt16)ITE_REGISTER_MAP.FAN_TABLE_CHG_COUNTER;
+            EC.DirectECWrite(ecAddrPort, ecDataPort, fanTableChangeCounterAddress, fanTableChangeCounterValue);
+
+            UInt16 fanTableChangeCounterSecAddress = (UInt16)ITE_REGISTER_MAP.FAN_TABLE_CHG_COUNTER_SEC;
+            EC.DirectECWrite(ecAddrPort, ecDataPort, fanTableChangeCounterSecAddress, fanTableChangeCounterValue);
+        }
+
+        private static void WriteStopRGBFanWakeToEC(byte ecAddrPort, byte ecDataPort, byte stopRGBFanWakeValue)
+        {
+            UInt16 stopRGBFanWakeAddress = (UInt16)ITE_REGISTER_MAP.STOP_RGB_FAN_WAKE;
+            EC.DirectECWrite(ecAddrPort, ecDataPort, stopRGBFanWakeAddress, stopRGBFanWakeValue);
+        }
+
+        private static void WriteTemperatureRampToEC(byte ecAddrPort, byte ecDataPort, byte[] temperatureRampBytes, UInt16 startAddress, int rampSize, byte fillValue)
+        {
+            int numberOfBytesToWrite = Math.Min(rampSize, temperatureRampBytes.Length);
+
+            // Create a new array with the bytes to write
+            byte[] bytesToWrite = new byte[rampSize];
+
+            // Copy the bytes from temperatureRampBytes to bytesToWrite
+            Array.Copy(temperatureRampBytes, bytesToWrite, numberOfBytesToWrite);
+
+            // Fill the remaining bytes with the specified fillValue
+            for (int i = numberOfBytesToWrite; i < rampSize; i++)
+            {
+                bytesToWrite[i] = fillValue;
+            }
+
+            // Iterate through the range and write bytes to EC
+            for (int i = 0; i < rampSize; i++)
+            {
+                // Calculate the current address to write
+                UInt16 currentAddress = (UInt16)(startAddress + i);
+
+                // Write to the current address
+                EC.DirectECWrite(ecAddrPort, ecDataPort, currentAddress, bytesToWrite[i]);
+            }
+        }
+
+        public static void WriteFanRpmPointsToEC(byte ecAddrPort, byte ecDataPort, byte[] fanRpmPointsBytes, int fanCurvePoints, UInt16[] startingAddresses)
+        {
+            // Determine the number of bytes to write (up to 9, limited by fanCurvePoints)
+            int numberOfBytesToWrite = Math.Min(fanCurvePoints, 9);
+
+            // Compute the lastByteValue by taking the last value of the fanRpmPointsBytes
+            byte lastByteValue = numberOfBytesToWrite > 0 ? fanRpmPointsBytes[numberOfBytesToWrite - 1] : (byte)0;
+
+            // Create a byte array to hold the values to be written
+            byte[] valuesToWrite = new byte[9];
+
+            // Copy the fanRpmPointsBytes to the valuesToWrite array
+            Array.Copy(fanRpmPointsBytes, valuesToWrite, numberOfBytesToWrite);
+
+            // If there are fewer than 9 bytes to write, complete the rest with the lastByteValue
+            for (int i = numberOfBytesToWrite; i < 9; i++)
+            {
+                valuesToWrite[i] = lastByteValue;
+            }
+
+            // Loop through the starting addresses and write the values
+            for (int i = 0; i < startingAddresses.Length; i++)
+            {
+                UInt16 currentAddress = (UInt16)startingAddresses[i];
+
+                // Write to the current address
+                EC.DirectECWriteArray(ecAddrPort, ecDataPort, currentAddress, valuesToWrite);
+            }
+        }
 
 
+        public static void WriteFanPointCounterMaxSizeToEC(byte ecAddrPort, byte ecDataPort, byte fanPointCounterMaxSize)
+        {
+            // Address for FAN_POINTS_NO
+            UInt16 fanPointsNoAddress = (UInt16)ITE_REGISTER_MAP.FAN_POINTS_NO;
+
+            // Write to the FAN_POINTS_NO address
+            EC.DirectECWrite(ecAddrPort, ecDataPort, fanPointsNoAddress, fanPointCounterMaxSize);
+        }
+
+
+        private static void WriteFanAcclDecclToEC(byte ecAddrPort, byte ecDataPort, int legionGen, byte fanAcclValueByte, byte fanDecclValueByte)
+        {
+            // Check if legionGen is equal to 5
+            if (legionGen == 5)
+            {
+                // Addresses for GEN 5 fan acceleration and deceleration values
+                UInt16 fan1AccGen5Address = (UInt16)ITE_REGISTER_MAP.FAN1_ACC_GEN5;
+                UInt16 fan1DecGen5Address = (UInt16)ITE_REGISTER_MAP.FAN1_DEC_GEN5;
+                UInt16 fan2AccGen5Address = (UInt16)ITE_REGISTER_MAP.FAN2_ACC_GEN5;
+                UInt16 fan2DecGen5Address = (UInt16)ITE_REGISTER_MAP.FAN2_DEC_GEN5;
+
+                // Write fan1 acceleration value
+                EC.DirectECWrite(ecAddrPort, ecDataPort, fan1AccGen5Address, fanAcclValueByte);
+                // Write fan1 deceleration value
+                EC.DirectECWrite(ecAddrPort, ecDataPort, fan1DecGen5Address, fanDecclValueByte);
+
+                // Write fan2 acceleration value
+                EC.DirectECWrite(ecAddrPort, ecDataPort, fan2AccGen5Address, fanAcclValueByte);
+                // Write fan2 deceleration value
+                EC.DirectECWrite(ecAddrPort, ecDataPort, fan2DecGen5Address, fanDecclValueByte);
+
+                //Console.WriteLine("GEN 5 Fan Acceleration and Deceleration values written successfully."); // Debug
+            }
+            else
+            {
+                // Addresses for GEN 6 fan acceleration and deceleration values
+                UInt16 fanAccGen6StartAddress = (UInt16)ITE_REGISTER_MAP.FAN_ACC_GEN6;
+                UInt16 fanDecGen6StartAddress = (UInt16)ITE_REGISTER_MAP.FAN_DEC_GEN6;
+
+                // Number of addresses to span
+                int numberOfAddresses = 10; // 0xC569 - 0xC560 + 1 = 10
+
+                // Create arrays with acceleration and deceleration values
+                byte[] fanAccValues = Enumerable.Repeat((byte)fanAcclValueByte, numberOfAddresses).ToArray();
+                byte[] fanDecValues = Enumerable.Repeat((byte)fanDecclValueByte, numberOfAddresses).ToArray();
+
+                // Write to the GEN 6 fan acceleration addresses
+                EC.DirectECWriteArray(ecAddrPort, ecDataPort, fanAccGen6StartAddress, fanAccValues);
+
+                // Write to the GEN 6 fan deceleration addresses
+                EC.DirectECWriteArray(ecAddrPort, ecDataPort, fanDecGen6StartAddress, fanDecValues);
+
+                //Console.WriteLine("GEN 6 Fan Acceleration and Deceleration values written successfully."); // Debug
+            }
+        }
 
 
         private static void DebugReadECAddresses(
@@ -539,17 +698,10 @@ namespace FanControl.Utils
             Console.WriteLine($"Fan2 RPM (Hex): {hexValues.Trim()}, (Int): {intValues.Trim()}, * 100: {multipliedValues.Trim()}");
 
             // Fan RPM Values
-
-
-
-
             //
 
-
             // Cpu Ramp Up and Ramp Down Temperatures Debug //
-
             // CPU Temperature Thresholds Debug
-
             // Read and print CPU Ramp Up thresholds
             // Variables to store the values during the loop
             string cpuRampUpHexValues = "";
@@ -585,8 +737,6 @@ namespace FanControl.Utils
 
             // Print all values in a single line after the loop
             Console.WriteLine($"CPU Ramp Down Thresholds (Hex): {cpuRampDownHexValues.Trim()}, (Int): {cpuRampDownIntValues.Trim()}");
-
-
 
             // GPU Ramp Up and Ramp Down Temperatures Debug //
 
@@ -988,4 +1138,121 @@ int fan1Rpm = (fan1RpmMsb << 8) | fan1RpmLsb;
 // Display the FAN1 RPM
 Console.WriteLine($"FAN1 RPM: {fan1Rpm} RPM");*/
 
+
+
+/*// Print the values of the converted file info to hex
+Console.WriteLine($"fanCurvePoints (Decimal): {fanCurvePointsByte}");
+Console.WriteLine($"fanAcclValue (Decimal): {fanAcclValueByte}");
+Console.WriteLine($"fanDecclValue (Decimal): {fanDecclValueByte}");
+
+Console.WriteLine("fanRpmPointsBytes (Decimal):");
+Console.WriteLine(string.Join(", ", fanRpmPointsBytes));
+
+Console.WriteLine("cpuTempsRampUpBytes (Decimal):");
+Console.WriteLine(string.Join(", ", cpuTempsRampUpBytes));
+
+Console.WriteLine("cpuTempsRampDownBytes (Decimal):");
+Console.WriteLine(string.Join(", ", cpuTempsRampDownBytes));
+
+Console.WriteLine("gpuTempsRampUpBytes (Decimal):");
+Console.WriteLine(string.Join(", ", gpuTempsRampUpBytes));
+
+Console.WriteLine("gpuTempsRampDownBytes (Decimal):");
+Console.WriteLine(string.Join(", ", gpuTempsRampDownBytes));
+
+Console.WriteLine("hstTempsRampUpBytes (Decimal):");
+Console.WriteLine(string.Join(", ", hstTempsRampUpBytes));
+
+Console.WriteLine("hstTempsRampDownBytes (Decimal):");
+Console.WriteLine(string.Join(", ", hstTempsRampDownBytes));
+
+Console.WriteLine();
+Console.WriteLine();
+
+// Print the hexadecimal values
+Console.WriteLine($"fanCurvePoints (Hexadecimal): 0x{fanCurvePointsByte:X}");
+Console.WriteLine($"fanAcclValue (Hexadecimal): 0x{fanAcclValueByte:X}");
+Console.WriteLine($"fanDecclValue (Hexadecimal): 0x{fanDecclValueByte:X}");
+
+Console.WriteLine("fanRpmPointsBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", fanRpmPointsBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("cpuTempsRampUpBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", cpuTempsRampUpBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("cpuTempsRampDownBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", cpuTempsRampDownBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("gpuTempsRampUpBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", gpuTempsRampUpBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("gpuTempsRampDownBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", gpuTempsRampDownBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("hstTempsRampUpBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", hstTempsRampUpBytes.Select(b => $"0x{b:X}")));
+
+Console.WriteLine("hstTempsRampDownBytes (Hexadecimal):");
+Console.WriteLine(string.Join(", ", hstTempsRampDownBytes.Select(b => $"0x{b:X}")));*/
+
+
+
+
+
 // ---------------
+
+
+
+
+
+
+// ---------------- Code that was put in a function clean this up later -----
+
+/*// Assuming fanAcclValueByte and fanDecclValueByte are calculated as mentioned before
+
+// Addresses for GEN 5 fan acceleration and deceleration values
+UInt16 fan1AccGen5Address = (UInt16)ITE_REGISTER_MAP.FAN1_ACC_GEN5;
+UInt16 fan1DecGen5Address = (UInt16)ITE_REGISTER_MAP.FAN1_DEC_GEN5;
+UInt16 fan2AccGen5Address = (UInt16)ITE_REGISTER_MAP.FAN2_ACC_GEN5;
+UInt16 fan2DecGen5Address = (UInt16)ITE_REGISTER_MAP.FAN2_DEC_GEN5;
+
+// Check if legionGen is equal to 5
+if (legionGen == 5)
+{
+    // Write fan1 acceleration value
+    EC.DirectECWrite(ecAddrPort, ecDataPort, fan1AccGen5Address, fanAcclValueByte);
+    // Write fan1 deceleration value
+    EC.DirectECWrite(ecAddrPort, ecDataPort, fan1DecGen5Address, fanDecclValueByte);
+
+    // Write fan2 acceleration value
+    EC.DirectECWrite(ecAddrPort, ecDataPort, fan2AccGen5Address, fanAcclValueByte);
+    // Write fan2 deceleration value
+    EC.DirectECWrite(ecAddrPort, ecDataPort, fan2DecGen5Address, fanDecclValueByte);
+
+    //Console.WriteLine("GEN 5 Fan Acceleration and Deceleration values written successfully.");
+}
+else
+{
+    // Assuming fanAcclValueByte and fanDecclValueByte are calculated as mentioned before
+
+    // Addresses for GEN 6 fan acceleration and deceleration values
+    UInt16 fanAccGen6StartAddress = (UInt16)ITE_REGISTER_MAP.FAN_ACC_GEN6;
+    UInt16 fanDecGen6StartAddress = (UInt16)ITE_REGISTER_MAP.FAN_DEC_GEN6;
+
+    // Number of addresses to span
+    int numberOfAddresses = 10; // 0xC569 - 0xC560 + 1 = 10
+
+    // Create arrays with acceleration and deceleration values
+    byte[] fanAccValues = Enumerable.Repeat((byte)fanAcclValueByte, numberOfAddresses).ToArray();
+    byte[] fanDecValues = Enumerable.Repeat((byte)fanDecclValueByte, numberOfAddresses).ToArray();
+
+    // Write to the GEN 6 fan acceleration addresses
+    EC.DirectECWriteArray(ecAddrPort, ecDataPort, fanAccGen6StartAddress, fanAccValues);
+
+    // Write to the GEN 6 fan deceleration addresses
+    EC.DirectECWriteArray(ecAddrPort, ecDataPort, fanDecGen6StartAddress, fanDecValues);
+
+    //Console.WriteLine("GEN 6 Fan Acceleration and Deceleration values written successfully.");
+}*/
+
+//
