@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.CompilerServices;
 using FanControl.Utils;
+using static FanControl.Utils.EC;
 
 // Modified version of https://github.com/SmokelessCPUv2/Lagon-Fan-EC-Control/blob/main/FanControl/Utils/Utils.cs
 // Credits to SmokelessCpu for providing us with this file as open source. This is a better alternative to LFC as it uses
@@ -241,8 +242,8 @@ namespace FanControl.Utils
             FAN2_ACC_GEN5 = 0xC3DE,
             FAN2_DEC_GEN5 = 0xC3DF, // GEN 5 ACC/DEC VALUES
 
-            FAN1_ACC_GEN6 = 0xC560, // GEN 6 ACC/DEC VALUES FROM 0 TO A (9 usable points, 10th hard stop point marker)
-            FAN1_DEC_GEN6 = 0xC570,
+            FAN_ACC_GEN6 = 0xC560, // GEN 6 ACC/DEC VALUES FROM 0 TO A (9 usable points, 10th hard stop point marker)
+            FAN_DEC_GEN6 = 0xC570,
 
             //---------------------------------------------------------------------------------------------------------------------------------------
 
@@ -307,6 +308,7 @@ namespace FanControl.Utils
             FAN_TABLE_CHG_COUNTER_SEC = 0xC5FF,
 
             //---------------------------------------------------------------------------------------------------------------------------------------
+
         }
     }
 
@@ -354,15 +356,6 @@ namespace FanControl.Utils
                 powerModeWMI = ExtractPowerModeWMI(); // Get WMI Power Mode
                 filePath = GetFilePathBasedOnPowerMode(powerModeWMI); // Select the Right Fan Config based on WMI Power Mode
 
-                // Debug Section
-
-                // Print EC_ADDR_PORT and EC_DATA_PORT values
-                Console.WriteLine($"EC_ADDR_PORT: 0x{ecAddrPort:X}");
-                Console.WriteLine($"EC_DATA_PORT: 0x{ecDataPort:X}");
-
-                Console.WriteLine($"Power mode: {powerModeWMI}"); // Print Power Mode
-                Console.WriteLine($"File to extract fan curves from: {filePath}"); // Print File Path
-
                 // Extract values from the file
                 var extractedValues = ExtractValuesFromFile(filePath); // Get the Necesarry values from the file
 
@@ -379,25 +372,23 @@ namespace FanControl.Utils
                 int[] hstTempsRampUp = (int[])extractedValues["hst_temps_ramp_up"];
                 int[] hstTempsRampDown = (int[])extractedValues["hst_temps_ramp_down"];
 
-
-                // Display the extracted values (optional)
-                Console.WriteLine($"Legion Gen: {legionGen}");
-                Console.WriteLine($"Fan Curve Points: {fanCurvePoints}");
-                Console.WriteLine($"Fan Accl Value: {fanAcclValue}");
-                Console.WriteLine($"Fan Decl Value: {fanDecclValue}");
-                Console.WriteLine($"Fan RPM Points: {string.Join(", ", fanRpmPointsValue)}");
-                Console.WriteLine($"CPU Temps Ramp Up: {string.Join(", ", cpuTempsRampUp)}");
-                Console.WriteLine($"CPU Temps Ramp Down: {string.Join(", ", cpuTempsRampDown)}");
-                Console.WriteLine($"GPU Temps Ramp Up: {string.Join(", ", gpuTempsRampUp)}");
-                Console.WriteLine($"GPU Temps Ramp Down: {string.Join(", ", gpuTempsRampDown)}");
-                Console.WriteLine($"HST Temps Ramp Up: {string.Join(", ", hstTempsRampUp)}");
-                Console.WriteLine($"HST Temps Ramp Down: {string.Join(", ", hstTempsRampDown)}"); // Debug Values
-
-
-                // Keep the console window open for user observation (Debug Reading)
-                Console.ReadLine();
-
-                //
+                DebugReadECAddresses( // Decomment this if you don't need to double check the data and the program works correctly
+                    legionGen,
+                    fanCurvePoints,
+                    fanAcclValue,
+                    fanDecclValue,
+                    fanRpmPointsValue,
+                    cpuTempsRampUp,
+                    cpuTempsRampDown,
+                    gpuTempsRampUp,
+                    gpuTempsRampDown,
+                    hstTempsRampUp,
+                    hstTempsRampDown,
+                    ecAddrPort,
+                    ecDataPort,
+                    powerModeWMI,
+                    filePath
+               );
 
             }
             else
@@ -408,6 +399,301 @@ namespace FanControl.Utils
 
             // Deallocate info related to WinRing
             WinRing.DeinitializeOls();
+        }
+
+
+
+
+
+        private static void DebugReadECAddresses(
+            int legionGen,
+            int fanCurvePoints,
+            int fanAcclValue,
+            int fanDecclValue,
+            int[] fanRpmPointsValue,
+            int[] cpuTempsRampUp,
+            int[] cpuTempsRampDown,
+            int[] gpuTempsRampUp,
+            int[] gpuTempsRampDown,
+            int[] hstTempsRampUp,
+            int[] hstTempsRampDown,
+            byte ecAddrPort,
+            byte ecDataPort,
+            int powerModeWMI,
+            string filePath)
+        {
+
+
+            // Debug Section
+
+            // Print EC_ADDR_PORT and EC_DATA_PORT values
+            Console.WriteLine($"EC_ADDR_PORT: 0x{ecAddrPort:X}");
+            Console.WriteLine($"EC_DATA_PORT: 0x{ecDataPort:X}");
+
+            Console.WriteLine($"Power mode: {powerModeWMI}"); // Print Power Mode
+            Console.WriteLine($"File to extract fan curves from: {filePath}"); // Print File Path
+
+            // Display the extracted values (optional)
+            Console.WriteLine($"Legion Gen: {legionGen}");
+            Console.WriteLine($"Fan Curve Points: {fanCurvePoints}");
+            Console.WriteLine($"Fan Accl Value: {fanAcclValue}");
+            Console.WriteLine($"Fan Decl Value: {fanDecclValue}");
+            Console.WriteLine($"Fan RPM Points: {string.Join(", ", fanRpmPointsValue)}");
+            Console.WriteLine($"CPU Temps Ramp Up: {string.Join(", ", cpuTempsRampUp)}");
+            Console.WriteLine($"CPU Temps Ramp Down: {string.Join(", ", cpuTempsRampDown)}");
+            Console.WriteLine($"GPU Temps Ramp Up: {string.Join(", ", gpuTempsRampUp)}");
+            Console.WriteLine($"GPU Temps Ramp Down: {string.Join(", ", gpuTempsRampDown)}");
+            Console.WriteLine($"HST Temps Ramp Up: {string.Join(", ", hstTempsRampUp)}");
+            Console.WriteLine($"HST Temps Ramp Down: {string.Join(", ", hstTempsRampDown)}"); // Debug Values
+
+
+            // Debug Test Read Addresses
+
+            Console.WriteLine("Check if Addresses are handled right");
+
+            if (legionGen == 5)
+            {
+                byte fan1AccGen5 = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN1_ACC_GEN5);
+                byte fan1DecGen5 = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN1_DEC_GEN5);
+                byte fan2AccGen5 = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN2_ACC_GEN5);
+                byte fan2DecGen5 = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN2_DEC_GEN5);
+
+                Console.WriteLine($"FAN1_ACC_GEN5: {fan1AccGen5}");
+                Console.WriteLine($"FAN1_DEC_GEN5: {fan1DecGen5}");
+                Console.WriteLine($"FAN2_ACC_GEN5: {fan2AccGen5}");
+                Console.WriteLine($"FAN2_DEC_GEN5: {fan2DecGen5}");
+            }
+            else
+            {
+                byte[] fan1AccGen6Values = EC.DirectECReadArray(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN_ACC_GEN6, 10);
+                byte[] fan1DecGen6Values = EC.DirectECReadArray(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN_DEC_GEN6, 10);
+
+                Console.WriteLine("FAN_ACC_GEN6 Values:");
+                for (int i = 0; i < fan1AccGen6Values.Length; i++)
+                {
+                    Console.WriteLine($"Index {i}: {fan1AccGen6Values[i]}");
+                }
+
+                Console.WriteLine("FAN_DEC_GEN6 Values:");
+                for (int i = 0; i < fan1DecGen6Values.Length; i++)
+                {
+                    Console.WriteLine($"Index {i}: {fan1DecGen6Values[i]}");
+                }
+            }
+
+            byte fanPointsNo = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN_POINTS_NO);
+            Console.WriteLine($"Fan Points Number (Hex): 0x{fanPointsNo:X}");
+
+            // Print integer value
+            int fanPointsInt = fanPointsNo;
+            Console.WriteLine($"Fan Points Number (Int): {fanPointsInt}");
+
+            // 
+
+            // Fan RPM Values Debug
+
+            // Read and print Fan1 RPM values
+            // Variables to store the values during the loop
+            string hexValues = "";
+            string intValues = "";
+            string multipliedValues = "";
+
+            for (int i = 0; i < 9; i++)
+            {
+                UInt16 fan1RpmAddress = (UInt16)((int)ITE_REGISTER_MAP.FAN1_RPM_ST_ADDR + i);
+                byte fan1RpmValue = EC.DirectECRead(ecAddrPort, ecDataPort, fan1RpmAddress);
+
+                // Multiply the RPM value by 100
+                int multipliedValue = fan1RpmValue * 100;
+
+                // Concatenate the values for each iteration
+                hexValues += $"0x{fan1RpmValue:X} ";
+                intValues += $"{fan1RpmValue} ";
+                multipliedValues += $"{multipliedValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"Fan1 RPM (Hex): {hexValues.Trim()}, (Int): {intValues.Trim()}, * 100: {multipliedValues.Trim()}");
+
+            // Read and print Fan2 RPM values
+            // Variables to store the values during the loop
+            hexValues = "";
+            intValues = "";
+            multipliedValues = "";
+
+            for (int i = 0; i < 9; i++)
+            {
+                UInt16 fan2RpmAddress = (UInt16)((int)ITE_REGISTER_MAP.FAN2_RPM_ST_ADDR + i);
+                byte fan2RpmValue = EC.DirectECRead(ecAddrPort, ecDataPort, fan2RpmAddress);
+
+                // Multiply the RPM value by 100
+                int multipliedValue = fan2RpmValue * 100;
+
+                // Concatenate the values for each iteration
+                hexValues += $"0x{fan2RpmValue:X} ";
+                intValues += $"{fan2RpmValue} ";
+                multipliedValues += $"{multipliedValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"Fan2 RPM (Hex): {hexValues.Trim()}, (Int): {intValues.Trim()}, * 100: {multipliedValues.Trim()}");
+
+            // Fan RPM Values
+
+
+
+
+            //
+
+
+            // Cpu Ramp Up and Ramp Down Temperatures Debug //
+
+            // CPU Temperature Thresholds Debug
+
+            // Read and print CPU Ramp Up thresholds
+            // Variables to store the values during the loop
+            string cpuRampUpHexValues = "";
+            string cpuRampUpIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 cpuRampUpAddress = (UInt16)((int)ITE_REGISTER_MAP.CPU_RAMP_UP_THRS + i);
+                byte cpuRampUpValue = EC.DirectECRead(ecAddrPort, ecDataPort, cpuRampUpAddress);
+
+                // Concatenate the values for each iteration
+                cpuRampUpHexValues += $"0x{cpuRampUpValue:X} ";
+                cpuRampUpIntValues += $"{cpuRampUpValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"CPU Ramp Up Thresholds (Hex): {cpuRampUpHexValues.Trim()}, (Int): {cpuRampUpIntValues.Trim()}");
+
+            // Read and print CPU Ramp Down thresholds
+            // Variables to store the values during the loop
+            string cpuRampDownHexValues = "";
+            string cpuRampDownIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 cpuRampDownAddress = (UInt16)((int)ITE_REGISTER_MAP.CPU_RAMP_DOWN_THRS + i);
+                byte cpuRampDownValue = EC.DirectECRead(ecAddrPort, ecDataPort, cpuRampDownAddress);
+
+                // Concatenate the values for each iteration
+                cpuRampDownHexValues += $"0x{cpuRampDownValue:X} ";
+                cpuRampDownIntValues += $"{cpuRampDownValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"CPU Ramp Down Thresholds (Hex): {cpuRampDownHexValues.Trim()}, (Int): {cpuRampDownIntValues.Trim()}");
+
+
+
+            // GPU Ramp Up and Ramp Down Temperatures Debug //
+
+            // GPU Temperature Thresholds Debug
+
+            // Read and print GPU Ramp Up thresholds
+            // Variables to store the values during the loop
+            string gpuRampUpHexValues = "";
+            string gpuRampUpIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 gpuRampUpAddress = (UInt16)((int)ITE_REGISTER_MAP.GPU_RAMP_UP_THRS + i);
+                byte gpuRampUpValue = EC.DirectECRead(ecAddrPort, ecDataPort, gpuRampUpAddress);
+
+                // Concatenate the values for each iteration
+                gpuRampUpHexValues += $"0x{gpuRampUpValue:X} ";
+                gpuRampUpIntValues += $"{gpuRampUpValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"GPU Ramp Up Thresholds (Hex): {gpuRampUpHexValues.Trim()}, (Int): {gpuRampUpIntValues.Trim()}");
+
+            // Read and print GPU Ramp Down thresholds
+            // Variables to store the values during the loop
+            string gpuRampDownHexValues = "";
+            string gpuRampDownIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 gpuRampDownAddress = (UInt16)((int)ITE_REGISTER_MAP.GPU_RAMP_DOWN_THRS + i);
+                byte gpuRampDownValue = EC.DirectECRead(ecAddrPort, ecDataPort, gpuRampDownAddress);
+
+                // Concatenate the values for each iteration
+                gpuRampDownHexValues += $"0x{gpuRampDownValue:X} ";
+                gpuRampDownIntValues += $"{gpuRampDownValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"GPU Ramp Down Thresholds (Hex): {gpuRampDownHexValues.Trim()}, (Int): {gpuRampDownIntValues.Trim()}");
+
+            // Heatsink Ramp Up and Ramp Down Temperatures Debug //
+
+            // Heatsink Temperature Thresholds Debug
+
+            // Read and print Heatsink Ramp Up thresholds
+            // Variables to store the values during the loop
+            string hstRampUpHexValues = "";
+            string hstRampUpIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 hstRampUpAddress = (UInt16)((int)ITE_REGISTER_MAP.HST_RAMP_UP_THRS + i);
+                byte hstRampUpValue = EC.DirectECRead(ecAddrPort, ecDataPort, hstRampUpAddress);
+
+                // Concatenate the values for each iteration
+                hstRampUpHexValues += $"0x{hstRampUpValue:X} ";
+                hstRampUpIntValues += $"{hstRampUpValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"Heatsink Ramp Up Thresholds (Hex): {hstRampUpHexValues.Trim()}, (Int): {hstRampUpIntValues.Trim()}");
+
+            // Read and print Heatsink Ramp Down thresholds
+            // Variables to store the values during the loop
+            string hstRampDownHexValues = "";
+            string hstRampDownIntValues = "";
+
+            for (int i = 0; i < 10; i++)
+            {
+                UInt16 hstRampDownAddress = (UInt16)((int)ITE_REGISTER_MAP.HST_RAMP_DOWN_THRS + i);
+                byte hstRampDownValue = EC.DirectECRead(ecAddrPort, ecDataPort, hstRampDownAddress);
+
+                // Concatenate the values for each iteration
+                hstRampDownHexValues += $"0x{hstRampDownValue:X} ";
+                hstRampDownIntValues += $"{hstRampDownValue} ";
+            }
+
+            // Print all values in a single line after the loop
+            Console.WriteLine($"Heatsink Ramp Down Thresholds (Hex): {hstRampDownHexValues.Trim()}, (Int): {hstRampDownIntValues.Trim()}");
+
+            // Read the STOP_RGB_FAN_WAKE value
+            byte stopRgbFanWakeValue = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.STOP_RGB_FAN_WAKE);
+
+            // Check if the hexadecimal value is 0x25 and print "(Stopped)"
+            string stoppedMessage = (stopRgbFanWakeValue == 0x25) ? " (Stopped)" : "";
+
+            // Print the value
+            Console.WriteLine($"STOP_RGB_FAN_WAKE Value: 0x{stopRgbFanWakeValue:X}{stoppedMessage}");
+
+
+            // Read the FAN_TABLE_CHG_COUNTER value
+            byte fanTableChgCounterValue = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN_TABLE_CHG_COUNTER);
+
+            // Print the FAN_TABLE_CHG_COUNTER value
+            Console.WriteLine($"FAN_TABLE_CHG_COUNTER Value: 0x{fanTableChgCounterValue:X}");
+
+            // Read the FAN_TABLE_CHG_COUNTER_SEC value
+            byte fanTableChgCounterSecValue = EC.DirectECRead(ecAddrPort, ecDataPort, (UInt16)ITE_REGISTER_MAP.FAN_TABLE_CHG_COUNTER_SEC);
+
+            // Print the FAN_TABLE_CHG_COUNTER_SEC value
+            Console.WriteLine($"FAN_TABLE_CHG_COUNTER_SEC Value: 0x{fanTableChgCounterSecValue:X}");
+
+
+
+            // Keep the console window open for user observation (Debug Reading)
+            Console.ReadLine();
         }
 
         private static int ExtractPowerModeWMI()
