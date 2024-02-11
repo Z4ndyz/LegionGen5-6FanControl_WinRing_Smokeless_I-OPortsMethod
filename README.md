@@ -30,6 +30,10 @@ I could have separated them but i kept them the same curve since Legion Laptops 
 Modify the value of legion_gen in the fan_config.txt files to corespond to your legion generation
 5 or 6.
 
+Fan RPM values can be a minimum of 0. i suggest to not use more than 5000, 4400 is lenovo max default
+in curves, but turbo is usually 5000 range, even if set higher fans will go
+only as fast as they can spin.
+
 The other values in the config files i provided corespond to my fancurves
 
         # Number of points : 9
