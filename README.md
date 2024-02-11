@@ -23,6 +23,10 @@ Tested on my Legion Gen 6 Legion 5 Pro and it works flawlessly.
 Fan Curves are checked and adjust themselves if needed every 15 seconds, if you build the source
 yourself you can change the timer in main to a lower value.
 
+You can set fan curves for Fn+Q modes as follow
+Quiet Mode (1), Balanced Mode (2), and Performance and Custom mode (3/255) will share the same fan curve.
+I could have separated them but i kept them the same curve since Legion Laptops do the same anyway.
+
 Modify the value of legion_gen in the fan_config.txt files to corespond to your legion generation
 5 or 6.
 
@@ -77,3 +81,6 @@ WinRing0x64.dll
 WinRing0x64.sys
 
 Feel free to fork this and modify it as long as you provide the LICENSE.md
+
+### I don't plan on doing an GUI nor do i have the experience for it, at least not right now
+maybe ever so don't wait for it. ###
