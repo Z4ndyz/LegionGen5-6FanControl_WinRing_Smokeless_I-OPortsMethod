@@ -84,6 +84,13 @@ WinRing0x64.dll
 WinRing0x64.dll
 WinRing0x64.sys
 
+#Added an archive with a debug version .exe, this one will still apply FanCurves but
+it will also display them.
+If you use less fan curve points but see 10(int) and 0xA fan points always don't worry
+Because i use padding up to this value, your curve will still be the same, and remember
+don't use more than 9 points.
+# 
+
 Feel free to fork this and modify it as long as you provide the LICENSE.md
 
 ### I don't plan on doing an GUI nor do i have the experience for it, at least not right now
