@@ -55,6 +55,7 @@ with. Hopefully the config files i provided represent a clear example.
 
 There are some binaries built already but it would be better if everyone compiled them themselves
 because Windows might flag them.
+You can find them at FanControl/FanControl/bin/Debug/net8.0
 
 App was built with net8.0.
 Files that should be present to have the App Running are
