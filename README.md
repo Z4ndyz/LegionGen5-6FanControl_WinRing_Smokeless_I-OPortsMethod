@@ -2,6 +2,8 @@
 Method of controlling Fans on Lenovo Legions Gen 5/6
 
 Make sure to run the app (.exe) as ADMIN otherwise IT WON'T WORK.
+Make sure WinRing0x64.sys is not blocked from being used on your system otherwise the app
+won't work.
 
 Use the fan_config.txt files values near the .exe after building the sollution
 
@@ -9,7 +11,7 @@ This project was done in my free time wanting to move away from RwDrv.sys and us
 that is less prone to throw IRQL errors and BSODS.
 Previously i used LFC (Legion Fan Control by Rodpad) before using a script to control
 fans that was still using RwDrv.sys albeit in a more secure manner.
-Huge thanks to for allowing me to share the files with you and of course by
+Huge thanks to SmokelessCPU for allowing me to share the files with you and of course by
 exposing a way to make use of WinRing0x64.sys and I/O ports to write and read from the EC.
 https://github.com/SmokelessCPUv2
 Huge thanks to @akillisandalye on Discord for helping me with EC mapping.
