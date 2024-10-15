@@ -93,5 +93,4 @@ don't use more than 9 points.
 
 Feel free to fork this and modify it as long as you provide the LICENSE.md
 
-### I don't plan on doing an GUI nor do i have the experience for it, at least not right now
-maybe ever so don't wait for it. ###
+### I don't plan on doing an GUI nor do i have the experience for it, at least not right now, maybe ever so don't wait for it. ###
